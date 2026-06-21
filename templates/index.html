@@ -2,27 +2,80 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ASCII Art Web</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+
+        textarea {
+            width: 100%;
+            max-width: 700px;
+            height: 120px;
+            padding: 10px;
+        }
+
+        .ascii-art {
+            white-space: pre;
+            overflow-x: auto;
+            font-family: monospace;
+            border: 1px solid #ccc;
+            padding: 15px;
+            background: #f5f5f5;
+        }
+
+        .error {
+            color: red;
+        }
+    </style>
 </head>
 <body>
-    <h1>ASCII Art Web</h1>
 
-    <form action="/ascii-art" method="POST">
-        <label>Text:</label><br>
-        <textarea name="text" rows="5" cols="50">{{.Text}}</textarea><br><br>
+<h1>Welcome to the ASCII Art Web!</h1>
 
-        <label>Banner:</label><br>
-        <input type="radio" name="banner" value="standard" {{if eq .Banner "standard"}}checked{{else}}{{if not .Banner}}checked{{end}}{{end}}> Standard<br>
-        <input type="radio" name="banner" value="shadow" {{if eq .Banner "shadow"}}checked{{end}}> Shadow<br>
-        <input type="radio" name="banner" value="thinkertoy" {{if eq .Banner "thinkertoy"}}checked{{end}}> Thinkertoy<br><br>
+<form action="/ascii-art" method="post">
 
-        <button type="submit">Generate</button>
-    </form>
+<textarea
+name="text"
+placeholder="Enter the text you want to convert to ASCII art">{{.Text}}</textarea>
 
-    {{if .Result}}
-    <hr>
-    <h2>Result:</h2>
-    <pre>{{.Result}}</pre>
-    {{end}}
+<br><br>
+
+<label>
+<input type="radio" name="banner" value="shadow" required>
+Shadow
+</label>
+
+<label>
+<input type="radio" name="banner" value="standard">
+Standard
+</label>
+
+<label>
+<input type="radio" name="banner" value="thinkertoy">
+Thinkertoy
+</label>
+
+<br><br>
+
+<button type="submit">Generate</button>
+
+</form>
+
+{{if .Error}}
+<p class="error">{{.Error}}</p>
+{{end}}
+
+{{if .Result}}
+<hr>
+
+<h2>Result</h2>
+
+<pre class="ascii-art">{{.Result}}</pre>
+{{end}}
+
 </body>
 </html>

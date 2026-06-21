@@ -1,160 +1,160 @@
 package main
 
 import (
-	"fmt"
+	"bufio"
 	"html/template"
+	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
-// PageData holds data for the template
 type PageData struct {
-	Text   string
-	Banner string
-	Result string
+	Greeting string
+	Text     string
+	Banner   string
+	Result   string
+	Error    string
 }
 
-// BannerMap stores loaded banner files
-var BannerMap = make(map[string][]string)
-
-func main() {
-	// Load all banner files at startup
-	banners := []string{"standard", "shadow", "thinkertoy"}
-	for _, name := range banners {
-		if err := loadBanner(name); err != nil {
-			fmt.Printf("Error loading %s: %v\n", name, err)
-			os.Exit(1)
-		}
-	}
-
-	// Set up routes
-	http.HandleFunc("/", homeHandler)
-	http.HandleFunc("/ascii-art", asciiArtHandler)
-
-	// Start server
-	fmt.Println("Server running on http://localhost:8080")
-	http.ListenAndServe(":8080", nil)
-}
-
-// loadBanner reads a banner file into memory
-func loadBanner(name string) error {
-	data, err := os.ReadFile("banners/" + name + ".txt")
-	if err != nil {
-		return err
-	}
-	// Split by newline and store
-	BannerMap[name] = strings.Split(string(data), "\n")
-	return nil
-}
-
-// homeHandler serves the main page (GET /)
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	// Check for wrong path
 	if r.URL.Path != "/" {
-		http.Error(w, "404 Not Found", http.StatusNotFound)
-		return
-	}
-	// Only allow GET
-	if r.Method != http.MethodGet {
-		http.Error(w, "405 Method Not Allowed", http.StatusMethodNotAllowed)
+		http.NotFound(w, r)
 		return
 	}
 
-	// Load and execute template
-	tmpl, err := template.ParseFiles("templates/index.html")
-	if err != nil {
-		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	tmpl.Execute(w, PageData{})
+	renderTemplate(w, PageData{
+		Greeting: "Abdulwasiucodes",
+	})
 }
 
-// asciiArtHandler processes the form (POST /ascii-art)
-func asciiArtHandler(w http.ResponseWriter, r *http.Request) {
-	// Only allow POST
+func asciiHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "405 Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Parse form data
-	r.ParseForm()
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
 	text := r.FormValue("text")
 	banner := r.FormValue("banner")
 
-	// Validate input
-	if text == "" {
-		http.Error(w, "400 Bad Request", http.StatusBadRequest)
-		return
-	}
-
-	// Default to standard if no banner selected
-	if banner == "" {
-		banner = "standard"
-	}
-
-	// Check if banner exists
-	bannerLines, ok := BannerMap[banner]
-	if !ok {
-		http.Error(w, "404 Not Found", http.StatusNotFound)
-		return
-	}
-
-	// Generate ASCII art using your existing render logic
-	result := render(text, bannerLines)
-
-	// Load template and show result on same page
-	tmpl, err := template.ParseFiles("templates/index.html")
-	if err != nil {
-		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
 	data := PageData{
-		Text:   text,
-		Banner: banner,
-		Result: result,
+		Greeting: "Abdulwasiucodes",
+		Text:     text,
+		Banner:   banner,
 	}
 
-	tmpl.Execute(w, data)
+	if text == "" || banner == "" {
+		data.Error = "Please fill in all fields"
+		renderTemplate(w, data)
+		return
+	}
+
+	data.Result = generateASCII(text, banner)
+
+	renderTemplate(w, data)
 }
 
-// render is YOUR original function - unchanged logic
-func render(input string, banner []string) string {
-	if input == "" {
-		return ""
+func generateASCII(text string, banner string) string {
+	font, err := loadBanner(banner + ".txt")
+	if err != nil {
+		return "Error loading banner file"
 	}
 
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+
 	var result strings.Builder
-	parts := strings.Split(input, "\\n")
 
-	for i, part := range parts {
+	lines := strings.Split(text, "\n")
 
-		if part == "" {
-			if i < len(parts)-1 {
-				result.WriteString("\n")
-			}
-			continue
-		}
+	for i, line := range lines {
+		result.WriteString(renderText(line, font))
 
-		for row := 0; row < 8; row++ {
-			for _, ch := range part {
-
-				if ch < 32 || ch > 126 {
-					ch = ' '
-				}
-
-				start := (int(ch)-32)*9 + 1
-
-				if start+row < len(banner) {
-					result.WriteString(banner[start+row])
-				}
-			}
+		if i < len(lines)-1 {
 			result.WriteString("\n")
 		}
 	}
 
 	return result.String()
+}
+
+func renderText(text string, font map[rune][]string) string {
+	var result strings.Builder
+
+	for row := 0; row < 8; row++ {
+
+		for _, char := range text {
+
+			if ascii, ok := font[char]; ok {
+				result.WriteString(ascii[row])
+			}
+		}
+
+		result.WriteString("\n")
+	}
+
+	return result.String()
+}
+
+func loadBanner(path string) (map[rune][]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	font := make(map[rune][]string)
+
+	if len(lines) > 0 && lines[0] == "" {
+		lines = lines[1:]
+	}
+
+	index := 0
+
+	for char := 32; char <= 126; char++ {
+
+		if index+8 > len(lines) {
+			break
+		}
+
+		font[rune(char)] = lines[index : index+8]
+
+		index += 9
+	}
+
+	return font, nil
+}
+
+func renderTemplate(w http.ResponseWriter, data PageData) {
+	templatePath := filepath.Join("templates", "index.html")
+
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		http.Error(w, "Template error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, "Template execution error", http.StatusInternalServerError)
+	}
+}
+
+func main() {
+	http.HandleFunc("/", homeHandler)
+	http.HandleFunc("/ascii-art", asciiHandler)
+
+	log.Println("Server running on port 8080...")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
